@@ -62,28 +62,6 @@ Streamlit(웹)과 Ollama(LLM)를 동일 Pod에서 실행하고, 외부에는 Str
 - `python -m tests.smoke_local`
 - 브라우저로 `http://<pod-host>:8501` 접속
 
-## Streamlit Community Cloud 배포
-Cloud에서는 로컬 Ollama를 띄울 수 없습니다. 원격 Ollama API를 HTTPS로 공개하고, 앱은 그 URL을 사용해야 합니다.
-
-1) 원격 Ollama 서버 준비
-- 서버에서 모델 생성: `ollama create eeve -f modelfile`
-- `ollama serve`를 서비스로 실행
-- 리버스 프록시(Nginx/Caddy)로 `https://llm.example.com/api`(→ `127.0.0.1:11434`) 노출
-- 접근 제어(허용 IP/Basic Auth 등) 적용 권장
-
-2) Streamlit Cloud 설정
-- 저장소에 `requirements.txt` 포함(`streamlit`, `requests`, `python-dotenv`)
-- 배포 시 메인 파일로 `app.py` 선택
-- App settings → Secrets:
-  - `OLLAMA_BASE_URL = "https://llm.example.com/api"`
-  - `MODEL_NAME = "eeve-10.8b"`
-  - (선택) `OPENAI_API_KEY = ...`
-
-3) 주의 사항
-- Cloud에서 `http://localhost:11434`는 동작하지 않습니다.
-- HTTPS 권장(일부 플랫폼은 HTTP/임의 포트 제한)
-- Ollama 엔드포인트는 반드시 보호(앱 자체 인증 없음)
-
 ## 설정 가이드
 - `config.py`
   - `OLLAMA_BASE_URL = "http://localhost:11434/api"`
