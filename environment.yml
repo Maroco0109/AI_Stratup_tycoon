@@ -1,0 +1,20 @@
+name: tycoon
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Core runtime
+  - python=3.11
+
+  # App framework & HTTP
+  - streamlit
+  - requests
+
+  # JSON validation & YAML parsing (for your command-style inputs)
+  - jsonschema
+  - pyyaml
+
+  # pip available (leave empty unless you add pip-only deps)
+  - pip
+  - pip:
+      - python-dotenv

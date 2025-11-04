@@ -1,0 +1,77 @@
+############################
+# Environment & secrets
+############################
+.env
+.env.*
+!.env.example
+.python-version
+
+############################
+# Python cache / build
+############################
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+pip-log.txt
+pip-delete-this-directory.txt
+
+############################
+# Test & coverage
+############################
+.tox/
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+############################
+# Virtual environments
+############################
+.venv/
+venv/
+ENV/
+env/
+
+############################
+# Editors / IDE
+############################
+.vscode/
+.idea/
+*.code-workspace
+
+############################
+# Streamlit
+############################
+.streamlit/secrets.toml
+
+############################
+# Logs & artifacts
+############################
+logs/
+*.log
+
+############################
+# OS-specific
+############################
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+############################
+# Ollama / models
+############################
+*.gguf
+ollama/**/*.gguf
+
