@@ -1,0 +1,21 @@
+# Ollama Modelfile for local EEVE GGUF
+#
+# How to change the GGUF path:
+#   - Replace the path in FROM with your local GGUF file location.
+# How to adjust temperature and context window:
+#   - Edit the PARAMETER lines below.
+# How this SYSTEM block complements rulebook.md:
+#   - This enforces JSON-only output at the model level; rulebook.md repeats the rule.
+
+FROM ./eeve-10.8b.Q4_K_M.gguf
+
+PARAMETER temperature 0.7
+PARAMETER num_ctx 4096
+
+SYSTEM """
+You must respond with exactly one JSON object wrapped by a ```json code fence.
+For days 1–6: { "day", "delta", "score", "reason", "llm_summary" }.
+For day 7: { "day": 7, "final_score", "final_grade", "risk_report":[], "next_recommendations":[] }.
+No extra text before or after the JSON block.
+"""
+
