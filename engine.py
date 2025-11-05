@@ -1,21 +1,25 @@
 """
-Game orchestrator: daily events and scoring.
+Game orchestrator aligned with README and prompts/rulebook.md.
 
-Change: OpenAI scores the user's input; EEVE (Ollama) handles qualitative
-reasoning and summaries. We combine both into one daily report.
+Model usage plan
+- EEVE (Issuer):
+  * Issues daily event cards (type=event_card) instructing the user to reply
+    with a single paragraph in Korean polite tone.
+  * After the user replies, produces qualitative fields only (type=daily_qual):
+    reason, llm_summary. Never returns numeric scores.
+- OpenAI (Tester):
+  * Scores the user's one-paragraph reply and returns delta and score only
+    (type=daily_score). Uses the scoring table in the rulebook.
 
-Functions
-- get_event_card(day): deterministic event summary per day (1–6), wrap-up for 7
-- judge_day(day, user_text, score):
-    * Ask EEVE for qualitative fields (reason, llm_summary)
-    * Ask OpenAI for numeric scoring (delta, score)
-    * Merge and return strictly JSON-ready dict
-- get_final_report(day, score, logs): compute final grade and simple suggestions
+We merge both outputs into a daily_report: {day, delta, score, reason, llm_summary}.
 
 Implementation notes
-- Ollama POST {OLLAMA_BASE_URL}/chat with messages [{role, content}, ...]
-- OpenAI POST {OPENAI_BASE_URL}/chat/completions with response_format=json_object
-- Robust JSON extraction via _safe_json
+- EEVE via Ollama: POST {OLLAMA_BASE_URL}/chat with messages [{role, content}, ...]
+- OpenAI via Chat Completions: POST {OPENAI_BASE_URL}/chat/completions with
+  response_format=json_object
+- Rulebook parsing: extract the specific SYSTEM sections for EEVE and OpenAI
+  from prompts/rulebook.md so each model receives its tailored instructions.
+- Robust JSON extraction via _safe_json for EEVE; OpenAI uses JSON response_format.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ import json
 import os
 import re
 from typing import Any, Dict, List
+from pathlib import Path
 
 import requests
 
@@ -42,89 +47,76 @@ from config import (
     OPENAI_MODEL,
     OPENAI_API_KEY_ENV,
 )
-from prompts.templates import system_prompt, user_payload_judge
+# No direct template imports; engine extracts SYSTEM prompts from rulebook.md
 
 
 def get_event_card(day: int) -> Dict[str, Any]:
-    """Return a simple event card for the given day.
+    """Return an event card for the given day via EEVE when possible.
 
-    Currently deterministic to avoid latency and flakiness. You can switch to
-    EEVE-based generation later if desired.
+    - Preferred (days 1..6): Ask EEVE (Issuer) to produce a type=event_card JSON.
+    - Fallback: deterministic local event card when model call fails or for day 7.
     """
+    if 1 <= day <= 6:
+        try:
+            eeve_sys = _eeve_system_prompt()
+            user = _eeve_event_payload(day)
+            raw = _ollama_chat([
+                {"role": "system", "content": eeve_sys},
+                {"role": "user", "content": user},
+            ])
+            obj = _safe_json(raw)
+            if isinstance(obj, dict) and obj.get("type") == "event_card":
+                return {
+                    "day": int(obj.get("day", day)),
+                    "title": obj.get("title") or "Event",
+                    "summary": obj.get("summary") or "",
+                    "constraints": obj.get("constraints", []),
+                    "eval_focus": obj.get("eval_focus", []),
+                    "response_instructions": obj.get("response_instructions", ""),
+                }
+        except Exception:
+            pass
+
     base = {
-        1: {
-            "day": 1,
-            "title": "Idea Polishing",
-            "summary": "Refine your AI startup idea: value prop, target users, and edge.",
-        },
-        2: {
-            "day": 2,
-            "title": "Obstacle: Cost Overruns",
-            "summary": "Cloud inference costs spike. Propose immediate mitigations and a plan.",
-        },
-        3: {
-            "day": 3,
-            "title": "User Feedback",
-            "summary": "Early testers are confused by onboarding. Clarify flows and messaging.",
-        },
-        4: {
-            "day": 4,
-            "title": "Performance Bottleneck",
-            "summary": "Latency exceeds SLA. Describe profiling steps and prioritization.",
-        },
-        5: {
-            "day": 5,
-            "title": "Investor Meeting",
-            "summary": "Craft a compelling pitch and metrics narrative for seed VCs.",
-        },
-        6: {
-            "day": 6,
-            "title": "Compliance Review",
-            "summary": "Address privacy/regulatory constraints; outline guardrails and SOPs.",
-        },
-        7: {
-            "day": 7,
-            "title": "Final Wrap-up",
-            "summary": "Summarize week outcomes; deliver final risks and next steps.",
-        },
+        1: {"day": 1, "title": "Idea Polishing", "summary": "Refine your AI startup idea: value prop, target users, and edge."},
+        2: {"day": 2, "title": "Obstacle: Cost Overruns", "summary": "Cloud inference costs spike. Propose immediate mitigations and a plan."},
+        3: {"day": 3, "title": "User Feedback", "summary": "Early testers are confused by onboarding. Clarify flows and messaging."},
+        4: {"day": 4, "title": "Performance Bottleneck", "summary": "Latency exceeds SLA. Describe profiling steps and prioritization."},
+        5: {"day": 5, "title": "Investor Meeting", "summary": "Craft a compelling pitch and metrics narrative for seed VCs."},
+        6: {"day": 6, "title": "Compliance Review", "summary": "Address privacy/regulatory constraints; outline guardrails and SOPs."},
+        7: {"day": 7, "title": "Final Wrap-up", "summary": "Summarize week outcomes; deliver final risks and next steps."},
     }
     return base.get(day, {"day": day, "title": "Unknown", "summary": "No event."})
 
 
 def judge_day(day: int, user_text: str, score: int) -> Dict[str, Any]:
-    """Judge a day's response by combining EEVE(qualitative) + OpenAI(scoring).
+    """Judge a day's response by combining EEVE(Issuer) + OpenAI(Tester).
 
     Steps
-    - Get qualitative fields from EEVE (reason, llm_summary). If EEVE also emits
-      delta/score per the global rulebook, we ignore those numeric fields.
-    - Get numeric scoring from OpenAI (delta, score) per the game policy.
-    - Merge and return a single daily_report dict.
+    - EEVE produces qualitative fields only (reason, llm_summary) as type=daily_qual
+    - OpenAI produces numeric scoring (delta, score) as type=daily_score
+    - We merge into a single daily_report dict
     """
-    # 1) EEVE for qualitative fields
-    eeve_messages = [
-        {"role": "system", "content": system_prompt()},
-        {
-            "role": "user",
-            "content": user_payload_judge(day=day, user_text=user_text, prev_score=score),
-        },
-    ]
-
+    # 1) EEVE qualitative
     reason = ""
     llm_summary = ""
     try:
-        eeve_raw = _ollama_chat(eeve_messages)
-        eeve_data = _safe_json(eeve_raw)
-        reason = str(eeve_data.get("reason", "")).strip()
-        llm_summary = str(eeve_data.get("llm_summary", "")).strip()
+        eeve_sys = _eeve_system_prompt()
+        eeve_user = _eeve_daily_qual_payload(day=day, user_text=user_text)
+        eeve_raw = _ollama_chat([
+            {"role": "system", "content": eeve_sys},
+            {"role": "user", "content": eeve_user},
+        ])
+        eeve_obj = _safe_json(eeve_raw)
+        reason = str(eeve_obj.get("reason", "")).strip()
+        llm_summary = str(eeve_obj.get("llm_summary", "")).strip()
     except Exception:
-        # Keep qualitative fields empty if EEVE fails; scoring still proceeds.
         pass
 
-    # 2) OpenAI for numeric scoring
+    # 2) OpenAI numeric scoring
     try:
         delta, new_score = _openai_score(day=day, user_text=user_text, prev_score=score)
     except Exception:
-        # Conservative deterministic fallback if OpenAI scoring fails
         delta = _fallback_delta(day, user_text)
         new_score = max(0, score + delta)
 
@@ -242,31 +234,55 @@ def _openai_chat_json(messages: List[Dict[str, str]]) -> Dict[str, Any]:
         return _safe_json(content)
 
 
-def _scoring_system_prompt() -> str:
+def _eeve_system_prompt() -> str:
+    """Extract EEVE (Issuer) SYSTEM prompt section from prompts/rulebook.md."""
+    text = (Path(__file__).parent / "prompts" / "rulebook.md").read_text(encoding="utf-8")
+    m = re.search(r"^##\s*System:\s*EEVE[\s\S]*?(?=^##\s|\Z)", text, flags=re.MULTILINE)
+    return m.group(0).strip() if m else text
+
+
+def _openai_system_prompt() -> str:
+    """Extract OpenAI (Tester) SYSTEM prompt section from prompts/rulebook.md."""
+    text = (Path(__file__).parent / "prompts" / "rulebook.md").read_text(encoding="utf-8")
+    m = re.search(r"^##\s*System:\s*OpenAI[\s\S]*?(?=^##\s|\Z)", text, flags=re.MULTILINE)
+    return m.group(0).strip() if m else (
+        "You are the scoring tester. Output JSON with keys day, delta, score."
+    )
+
+
+def _eeve_event_payload(day: int) -> str:
+    """Request an event_card for the given day from EEVE."""
     return (
-        "You are the scoring judge for a 7-day AI startup game.\n"
-        "Output strictly a JSON object with keys: day, delta, score.\n"
-        "Rules:\n"
-        "- Day 1: award +0..+5 for creativity and +0..+5 for feasibility; delta = sum (cap +10).\n"
-        "- Day 2–6: allow penalties −5..−20 for weak responses; solid answers may be small positive or 0.\n"
-        "- Score = prev_score + delta (do not go below 0).\n"
-        "No extra commentary."
+        f"Day {day} 테스트 과제를 event_card JSON으로만 작성해 주세요.\n"
+        "필수 키: version(\"AST-v1\"), type=\"event_card\", role=\"EEVE\", day, title, summary, "
+        "constraints[], eval_focus[], response_instructions."
+    )
+
+
+def _eeve_daily_qual_payload(day: int, user_text: str) -> str:
+    """Request EEVE qualitative judgment only (daily_qual)."""
+    return (
+        f"Day {day} 사용자의 한 문단 응답이 아래에 있습니다.\n"
+        "점수 계산 없이 질적 판단만 daily_qual JSON으로 출력해 주세요.\n"
+        "필수 키: version(\"AST-v1\"), type=\"daily_qual\", role=\"EEVE\", day, reason, llm_summary.\n\n"
+        f"[User Paragraph]\n{user_text}"
     )
 
 
 def _scoring_user_payload(day: int, user_text: str, prev_score: int) -> str:
+    """Build OpenAI tester payload following the rulebook's protocol."""
     return (
         f"Day: {day}\n"
-        f"Prev score: {prev_score}\n"
-        "User paragraph (one only):\n"
-        f"{user_text}\n"
-        "Return JSON only with keys: day, delta, score."
+        f"Prev Score: {prev_score}\n"
+        "User Paragraph (one only):\n"
+        f"{user_text}\n\n"
+        "출력: version=\"AST-v1\", type=\"daily_score\", role=\"OpenAI\", day, delta, score 를 갖는 JSON만 출력."
     )
 
 
 def _openai_score(day: int, user_text: str, prev_score: int) -> (int, int):
     messages = [
-        {"role": "system", "content": _scoring_system_prompt()},
+        {"role": "system", "content": _openai_system_prompt()},
         {"role": "user", "content": _scoring_user_payload(day, user_text, prev_score)},
     ]
     obj = _openai_chat_json(messages)
@@ -327,4 +343,3 @@ def _fallback_delta(day: int, user_text: str) -> int:
     else:
         delta = 0
     return int(delta)
-
