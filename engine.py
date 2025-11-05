@@ -65,8 +65,8 @@ def get_event_card(day: int) -> Dict[str, Any]:
         }
     if 2 <= day <= 5:
         try:
-            eeve_sys = _eeve_system_prompt_clean(day, mode="event")
-            user = _eeve_event_payload_diverse(day)
+            eeve_sys = _eeve_system_prompt_relaxed(day, mode="event")
+            user = _eeve_event_payload_relaxed(day)
             raw = _ollama_chat([
                 {"role": "system", "content": eeve_sys},
                 {"role": "user", "content": user},
@@ -140,7 +140,7 @@ def judge_day(day: int, user_text: str, score: int) -> Dict[str, Any]:
     reason = ""
     llm_summary = ""
     try:
-        eeve_sys = _eeve_system_prompt_clean(day, mode="qual")
+        eeve_sys = _eeve_system_prompt_relaxed(day, mode="qual")
         eeve_user = _eeve_daily_qual_payload_clean(day=day, user_text=user_text)
         eeve_raw = _ollama_chat([
             {"role": "system", "content": eeve_sys},
@@ -537,3 +537,46 @@ def _fallback_delta(day: int, user_text: str) -> int:
     else:
         delta = 0
     return int(delta)
+
+
+# --- Relaxed prompt builders (additive, used by call sites) ---------------
+
+def _eeve_system_prompt_relaxed(day: int, mode: str) -> str:
+    """A lighter system prompt that preserves AST-v1 and JSON-fence rules
+    while giving the model freedom in event style and content.
+    """
+    guideline = input_guidelines(day) or ""
+    base = (
+        "아래 최소 규칙만 지켜 주세요.\n"
+        "- 단 하나의 JSON 객체를 하나의 ```json 펜스 블록 안에만 출력합니다.\n"
+        "- 펜스 밖 텍스트/이모지/주석/반복은 금지합니다.\n"
+        "- 헤더 키: version=\\\"AST-v1\\\", role=\\\"EEVE\\\", day.\n"
+        "- 한국어 존댓말을 사용합니다. EEVE는 점수/delta를 계산하지 않습니다.\n"
+        "- (선택) 영감용 가이드라인:\n"
+        f"{guideline}\n"
+    )
+    if mode == "event":
+        return base + (
+            "스키마: type=\\\"event_card\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
+            "- 사건/상황/기회 등 어떤 형식이든 자유롭게 제시해도 됩니다(현실적이면 충분).\n"
+            "- summary는 1~2문장 권장(수치·메트릭은 선택).\n"
+            "- eval_focus는 1~3개 짧은 초점(형식 자유).\n"
+            "- response_instructions는 한 문장으로 한 문단 답변을 부드럽게 요청하세요.\n"
+            "- 해설/정답은 쓰지 말고 카드 JSON만 출력하세요.\n"
+        )
+    return base + (
+        "스키마: type=\\\"daily_qual\\\", day, reason, llm_summary.\n"
+        "- 각 항목은 1~2문장 자연스러운 문장으로 작성합니다(목록/줄바꿈 금지).\n"
+        "- 점수/수치 언급은 금지합니다.\n"
+    )
+
+
+def _eeve_event_payload_relaxed(day: int) -> str:
+    """Minimal user payload to elicit a freer event card while keeping schema."""
+    return (
+        "다음 조건으로 event_card(JSON)를 출력해 주세요.\n"
+        f"- Day: {day}\n"
+        "- 스타트업 맥락에서 현실적이되, 사건/상황/기회를 창의적으로 제시해도 됩니다(수치 선택).\n"
+        "- 필수 키: version=\\\"AST-v1\\\", type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
+        "- 반드시 하나의 ```json 펜스 안에 단일 JSON 객체만 출력하세요."
+    )

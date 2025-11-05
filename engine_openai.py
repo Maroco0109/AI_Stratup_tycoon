@@ -28,8 +28,11 @@ from config import (
 )
 from prompts.templates import input_guidelines, RUBRIC_BY_DAY
 from engine_openai_addons import (
-    _issuer_system_prompt_strict,
     _tester_system_prompt_strict,
+)
+from engine_openai_relaxed import (
+    _issuer_system_prompt_relaxed,
+    _issuer_event_payload_relaxed,
 )
 
 # 모듈 설명(한국어)
@@ -77,8 +80,8 @@ def get_event_card(day: int) -> Dict[str, Any]:
                 "moat/compliance, traction/metrics & roadmap, team, and the ask (amount & use of funds)."
             ),
             "constraints": [
-                "�� �������� �ۼ�",
-                "�ѱ��� ���� ���",
+                "한 문단으로 작성",
+                "한국어 존댓말 사용",
             ],
             "eval_focus": [
                 "Coverage of fixed items",
@@ -86,13 +89,13 @@ def get_event_card(day: int) -> Dict[str, Any]:
                 "Market & moat clarity",
                 "Traction & roadmap",
             ],
-            "response_instructions": "��� �׸��� �� �������� �ڿ������� ������ �ֽʽÿ�.",
+            "response_instructions": "모든 항목을 한 문단으로 자연스럽게 포함해 주십시오.",
         }
 
     if 2 <= day <= 5:
         try:
-            sys_prompt = _issuer_system_prompt_strict(day, mode="event")
-            user = _issuer_event_payload_seeded(day)
+            sys_prompt = _issuer_system_prompt_relaxed(day, mode="event")
+            user = _issuer_event_payload_relaxed(day)
             raw = _openai_chat([
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user},
@@ -132,7 +135,7 @@ def judge_day(day: int, user_text: str, score: int) -> Dict[str, Any]:
     reason = ""
     llm_summary = ""
     try:
-        sys_prompt = _issuer_system_prompt_strict(day, mode="qual")
+        sys_prompt = _issuer_system_prompt_relaxed(day, mode="qual")
         issuer_user = _issuer_daily_qual_payload(day=day, user_text=user_text)
         raw = _openai_chat([
             {"role": "system", "content": sys_prompt},
