@@ -73,21 +73,21 @@ def get_event_card(day: int) -> Dict[str, Any]:
     if day == 6:
         return {
             "day": 6,
-            "title": "Day 6: Investor Pitch (fixed)",
+            "title": "Day 6: 투자자 피칭",
             "summary": (
-                "Pitch your AI startup in one paragraph: cover problem & customer, "
-                "solution and AI/LLM usage (models, prompt/chain/RAG, evals), market/segment, "
-                "moat/compliance, traction/metrics & roadmap, team, and the ask (amount & use of funds)."
+                "당신의 AI 스타트업을 한 문단으로 피칭하세요: 문제점과 고객, "
+                "솔루션 및 AI/LLM 활용 방법(모델, 프롬프트/체인/RAG, 평가), 시장/세그먼트, "
+                "경쟁 우위/컴플라이언스, 트랙션/지표 및 로드맵, 팀, 그리고 투자 요청(금액과 자금 사용 계획)을 포함해 주세요."
             ),
             "constraints": [
                 "한 문단으로 작성",
                 "한국어 존댓말 사용",
             ],
             "eval_focus": [
-                "Coverage of fixed items",
-                "AI/LLM utilization specifics",
-                "Market & moat clarity",
-                "Traction & roadmap",
+                "필수 항목 포괄성",
+                "AI/LLM 활용 구체성",
+                "시장 및 경쟁 우위 명확성",
+                "트랙션 및 로드맵",
             ],
             "response_instructions": "모든 항목을 한 문단으로 자연스럽게 포함해 주십시오.",
         }
