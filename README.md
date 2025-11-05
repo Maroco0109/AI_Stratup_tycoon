@@ -1,12 +1,21 @@
 # AI 스타트업 타이쿤 — Local LLM + Streamlit
 
-로컬 Ollama(GGUF) + Streamlit UI로 즐기는 7일 경영 게임입니다. EEVE 10.8B(또는 호환 Instruct) 모델을 사용하며, 점수는 OpenAI로 산정(선택)하거나 안전한 폴백 규칙으로 계산됩니다.
+로컬 Ollama(GGUF) + Streamlit UI로 즐기는 7일 경영 게임입니다. EEVE 10.8B(또는 호환 Instruct) 모델을 사용하며, 점수는 OpenAI로 계산됩니다.
 
 ## 주요 특징
 - 단일 페이지 채팅 UI: `st.chat_message` + `st.chat_input`(페이지당 1개)
 - 로컬 LLM: Ollama `/api/chat`으로 EEVE(GGUF) 호출
 - 7일 루프: 일자별 이벤트 → 사용자 한 문단 입력 → 채점/로그 → 다음 날
 - 최종 보고서: `final_score`, `final_grade`, `risk_report[]`, `next_recommendations[]`
+
+### 모델 사용 방안
+- EEVE
+  - 해당 모델은 전체적인 일차(Day)별 게임 진행 텍스트를 생성합니다.
+  - 각 일차(Day)별 시스템 프롬프트에 기반하여 이벤트를 사용자에게 제시합니다.
+  - OpenAI가 반환한 결과값을 사용자에게 보여줍니다.
+- OpenAI(GPT-4o)
+  - 해당 모델은 사용자 입력 분석 및 스코어 계산을 진행합니다.
+  - 각 일차(Day)별 EEVE가 생성한 Event, 그 Event에 대한 사용자의 응답, 그 사용자의 응답에 대한 점수 판단을 시스템 프롬프트에 기반하여 실시합니다.
 
 ## 폴더 구조
 ```
@@ -33,12 +42,12 @@ requirements.txt       # 최소 의존성
 3) 앱 실행
 - `streamlit run app.py`
 
-4) 스모크 테스트(선택)
+4) 스모크 테스트
 - `python -m tests.smoke_local`
 
-기본 구성은 `config.py`를 따르며, Ollama REST 기본값은 `http://localhost:11434/api`, 모델명은 `eeve-10.8b`입니다.
+> 기본 구성은 `config.py`를 따르며, Ollama REST 기본값은 `http://localhost:11434/api`, 모델명은 `eeve-10.8b`입니다.
 
-## RunPod에서 실행(동일 Pod)
+## RunPod에서 실행
 Streamlit(웹)과 Ollama(LLM)를 동일 Pod에서 실행하고, 외부에는 Streamlit(8501)만 노출하는 구성을 권장합니다.
 
 1) 의존성 설치
@@ -48,7 +57,6 @@ Streamlit(웹)과 Ollama(LLM)를 동일 Pod에서 실행하고, 외부에는 Str
 - `export OLLAMA_HOST=0.0.0.0`
 - `ollama serve &`  (백그라운드 실행)
 - `ollama create eeve -f modelfile`
-- (선택) `ollama run eeve`로 워밍업
 
 3) 환경 변수/시크릿
 - OpenAI 점수 산정 사용 시 `.env` 또는 Pod 환경변수에 `OPENAI_API_KEY` 설정
