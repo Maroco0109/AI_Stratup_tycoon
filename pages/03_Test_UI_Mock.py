@@ -1,11 +1,11 @@
 """
-Streamlit UI Test Page (Mocked)
+Streamlit UI 테스트 페이지(모의)
 
-Purpose
-- Preview the chat-based GUI without calling engines.
-- Keeps one `st.chat_input` per page (Streamlit constraint).
-- Mirrors `app.py` layout: sidebar status, event card, input help,
-  daily JSON report, Next Day button, and optional final report.
+목적
+- 엔진을 호출하지 않고 채팅형 GUI를 미리 확인합니다.
+- 페이지당 하나의 `st.chat_input` 제약을 지킵니다.
+- `app.py` 레이아웃을 모사합니다: 사이드바 상태, 이벤트 카드, 입력 가이드,
+  일일 JSON 보고서, 다음 날 버튼, 최종 보고(선택) 등.
 """
 
 from __future__ import annotations
@@ -183,10 +183,8 @@ def render_event_card(day: int):
                 f"DAY {day} EVENT: {card.get('title', 'N/A')}\n"
                 f"{card.get('summary', '')}")
             st.markdown("------")
-            show_event_json = st.checkbox("[+] Show Event JSON", key=f"event_json_{day}")
-            if show_event_json:
-                import json as _json
-                st.code(_json.dumps(card, ensure_ascii=False, indent=2), language="json")
+            import json as _json
+            st.code(_json.dumps(card, ensure_ascii=False, indent=2), language="json")
     else:
         with st.chat_message("assistant"):
             st.markdown("------")
@@ -196,7 +194,7 @@ def render_event_card(day: int):
 
 def render_input_help(day: int):
     if 1 <= day <= 6:
-        show_help = st.checkbox("[?] Show Input Help", key=f"input_help_{day}")
+        show_help = True
         if show_help:
             st.code(
                 "형식 요약: 공손한 한국어, 한 문단, 구체적 선택과 근거 포함\n"
@@ -204,7 +202,7 @@ def render_input_help(day: int):
                 language="text",
             )
     elif day == 7:
-        show_help = st.checkbox("[?] Show Input Help", key="input_help_7")
+        show_help = True
         if show_help:
             st.code("한 문단으로 일주일 전략 회고 및 다음 계획을 요약해 주세요.", language="text")
 
@@ -249,9 +247,7 @@ if user_text:
             st.markdown("------")
             st.markdown("DAILY REPORT RECEIVED (MOCK)")
             st.markdown("------")
-            show_daily_json = st.checkbox(
-                "[+] Show Daily JSON (report)", key=f"daily_json_{st.session_state.day}", value=True
-            )
+            show_daily_json = True
             if show_daily_json:
                 import json as _json
                 st.code(_json.dumps(report, ensure_ascii=False, indent=2), language="json")
@@ -263,7 +259,7 @@ if user_text:
                 logs=st.session_state.logs,
             )
             st.session_state.final_report = final_report
-            show_final_json = st.checkbox("[+] Show Final Report (mock)", key="final_json", value=True)
+            show_final_json = True
             if show_final_json:
                 import json as _json
                 st.code(_json.dumps(final_report, ensure_ascii=False, indent=2), language="json")

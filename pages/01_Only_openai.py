@@ -1,14 +1,10 @@
 """
-Streamlit 메인 UI (고전 터미널 스타일)
+Streamlit 메인 UI(OpenAI 전용 경로)
 
 역할
 - 한 페이지에 하나의 `st.chat_input`만 사용합니다.
-- engine.py를 통해 이벤트 카드 수신, 일일 채점/병합, 최종 보고서 생성을 수행합니다.
-- 모델 출력(JSON)을 코드 블록으로 간결히 보여줍니다(확장 UI 사용 안 함).
-
-설명
-- 이 파일은 화면 구성과 사용자 입력 처리에만 집중합니다. 모델 호출/병합 로직은
-  engine.py에 위임되며, 상태는 Streamlit session_state를 통해 공유됩니다.
+- engine_openai.py를 통해 이벤트 카드/질적 판단/채점을 모두 OpenAI로 수행합니다.
+- 모델 출력(JSON)을 코드 블록으로 간결히 노출합니다.
 """
 
 from __future__ import annotations
@@ -16,16 +12,21 @@ from __future__ import annotations
 import json
 import streamlit as st
 
-from engine import get_event_card, judge_day, get_final_report  # type: ignore
+from engine_openai import get_event_card, judge_day, get_final_report  # type: ignore
 from config import (  # type: ignore
-    OLLAMA_BASE_URL,
-    MODEL_NAME,
     OPENAI_MODEL,
-    OPENAI_BASE_URL,
 )
-from prompts.templates import input_guidelines, input_example, RUBRIC_BY_DAY  # type: ignore
+from prompts.templates import input_guidelines as _tpl_input_guidelines, input_example, RUBRIC_BY_DAY  # type: ignore
 from log import log_daily, log_final, clear_logs  # type: ignore
 from state import init_session_state  # type: ignore
+
+
+# Day 1 guideline override for OpenAI-only page
+def input_guidelines(day: int) -> str:  # shadows imported name
+    """Day 1 안내 문구만 이 페이지에서 재정의합니다."""
+    if day == 1:
+        return "창의적인 AI기반 사업 아이디어를 제시해주세요!"
+    return _tpl_input_guidelines(day)
 
 
 # Page + classic terminal styling
@@ -40,11 +41,7 @@ st.markdown(
         font-family: \"Courier New\", Courier, monospace !important;
     }
     [data-testid=\"stSidebar\"] { background:var(--term-bg)!important; color:var(--term-fg)!important; border-right:1px solid var(--term-border); }
-    h1,h2,h3,h4,h5,h6,p,label,code,pre { color:var(--term-fg)!important; font-family:\"Courier New\", Courier, monospace!important; }
-    /* div는 아이콘 요소 제외하고 적용 */
-    div:not([data-testid*="collapsedControl"]):not([class*="Icon"]) { color:var(--term-fg)!important; font-family:\"Courier New\", Courier, monospace!important; }
-    /* Material Icons 제외 - 아이콘이 아닌 span만 타겟팅 */
-    span:not([class*="material"]):not([data-baseweb]):not([aria-hidden]) { color:var(--term-fg)!important; font-family:\"Courier New\", Courier, monospace!important; }
+    h1,h2,h3,h4,h5,h6,p,span,label,div,code,pre { color:var(--term-fg)!important; font-family:\"Courier New\", Courier, monospace!important; }
     a{ color:var(--term-fg)!important; text-decoration:none; } a:hover{ text-decoration:underline; }
     [data-testid=\"stChatMessage\"]{ background:transparent!important; border:1px solid var(--term-border)!important; border-radius:0!important; padding:0.5rem 0.75rem!important; box-shadow:none!important; }
     [data-testid=\"stChatInput\"] textarea, [data-testid=\"stChatInput\"] div[contenteditable=\"true\"]{
@@ -53,29 +50,6 @@ st.markdown(
     .stButton > button{ background:var(--term-bg)!important; color:var(--term-fg)!important; border:1px solid var(--term-border)!important; border-radius:0!important; font-family:\"Courier New\", Courier, monospace!important; }
     .stButton > button:hover{ border-color:var(--term-fg)!important; }
     pre, code, .stCode code { background: var(--term-bg)!important; color: var(--term-fg)!important; border: none!important; }
-    /* Material Icons와 아이콘 폰트는 원래 스타일 유지 - 더 강력하게 */
-    [class*="material-icons"], [class*="Icon"], span[data-baseweb], span[aria-hidden="true"],
-    button[data-testid*="collapsed"] *, [data-testid*="collapsedControl"] * {
-        font-family: "Material Icons", "Material Symbols Outlined", system-ui !important;
-    }
-    /* 사이드바 토글 버튼 스타일 수정 */
-    button[data-testid="baseButton-header"] {
-        font-family: "Material Icons", "Material Symbols Outlined", system-ui !important;
-    }
-    /* keyboard_double_arrow 텍스트 숨기고 화살표 심볼로 대체 */
-    button[data-testid="baseButton-header"] span {
-        font-size: 0 !important; /* 원본 텍스트 숨김 */
-    }
-    button[data-testid="baseButton-header"] span::before {
-        content: "»" !important; /* 사이드바 닫기 (오른쪽 화살표) */
-        font-size: 1.5rem !important;
-        font-family: monospace !important;
-        color: var(--term-fg) !important;
-        display: inline-block !important;
-    }
-    button[data-testid="baseButton-header"][aria-expanded="true"] span::before {
-        content: "«" !important; /* 사이드바 열기 (왼쪽 화살표) */
-    }
     footer { visibility: hidden; }
     </style>
     """,
@@ -112,18 +86,13 @@ with st.sidebar:
     st.markdown("------")
     st.markdown(f"DAY:   {st.session_state.day} / 7")
     st.markdown(f"SCORE: {st.session_state.score}")
-    st.markdown(f"GENERATOR: {MODEL_NAME} (EEVE)")
-    st.markdown(f"SCORER:    {MODEL_NAME} (EEVE)")
+    st.markdown(f"GENERATOR: {OPENAI_MODEL} (OpenAI)")
+    st.markdown(f"SCORER:    {OPENAI_MODEL} (OpenAI)")
     st.markdown("------")
 
 
 def render_event_card(day: int):
-    """해당 일차의 이벤트 카드를 표시합니다.
-
-    - day<=6: EEVE(또는 결정론적 대체)에서 생성된 이벤트 카드(JSON)를 화면에 노출
-    - day==7: 최종 보고 안내만 노출
-    실패 시 최소 정보만 가진 대체 카드를 구성해 사용자에게 알립니다.
-    """
+    """해당 일차의 이벤트 카드를 표시합니다(OpenAI 전용 경로)."""
     if day <= 6 and day not in st.session_state.event_card_by_day:
         try:
             st.session_state.event_card_by_day[day] = get_event_card(day)
@@ -148,19 +117,11 @@ def render_event_card(day: int):
 
 
 def render_input_help(day: int):
-    """해당 일차에 맞는 가이드/루브릭/예시를 출력합니다.
-
-    - Day 1: 창의적 아이디어 제시를 직접 문구로 안내
-    - Day 2~6: prompts.templates에서 불러온 가이드/루브릭/예시 표시
-    - Day 7: 최종 보고 안내
-    """
+    """일차에 맞는 가이드/루브릭/예시를 표시합니다."""
     if 1 <= day <= 6:
         show_help = True
         if show_help:
-            if day == 1:
-                st.code("[GUIDELINE]\n창의적인 AI기반 사업 아이디어를 제시해주세요!", language="text")
-            else:
-                st.code(f"[GUIDELINE]\n{input_guidelines(day)}", language="text")
+            st.code(f"[GUIDELINE]\n{input_guidelines(day)}", language="text")
             rubric = RUBRIC_BY_DAY.get(day, "")
             if rubric:
                 st.code(f"[RUBRIC]\n{rubric}", language="text")
@@ -174,16 +135,13 @@ def render_input_help(day: int):
 
 
 def can_advance(day: int) -> bool:
-    """다음 일차로 진행 가능한지 여부를 반환합니다.
-
-    당일 리포트가 존재해야 다음 날로 넘어갈 수 있습니다.
-    """
+    """해당 일차 리포트가 생성되었는지 확인합니다."""
     return day in st.session_state.daily_report_by_day
 
 
 # Flow
 def render_previous_day_report(day: int):
-    """이전 일차의 리포트를 간단한 코드 블록(JSON)으로 다시 보여줍니다."""
+    """이전 일차의 리포트를 다시 보여줍니다."""
     prev = day - 1
     if prev >= 1 and prev in st.session_state.daily_report_by_day:
         with st.chat_message("assistant"):
@@ -229,7 +187,7 @@ if user_text:
 
         # Log daily interaction (user input + model report)
         try:
-            log_daily(page="app.py", day=current_day, user_text=user_text, report=cleaned_report, generator=MODEL_NAME, scorer=MODEL_NAME)
+            log_daily(page="Only_openai.py", day=current_day, user_text=user_text, report=cleaned_report, generator=OPENAI_MODEL, scorer=OPENAI_MODEL)
         except Exception:
             pass
 
@@ -250,7 +208,7 @@ if user_text:
                     st.code(json.dumps(final_report, ensure_ascii=False, indent=2), language="json")
                 # Log final summary
                 try:
-                    log_final(page="app.py", score=st.session_state.score, final_report=final_report, generator=MODEL_NAME, scorer=MODEL_NAME)
+                    log_final(page="Only_openai.py", score=st.session_state.score, final_report=final_report, generator=OPENAI_MODEL, scorer=OPENAI_MODEL)
                 except Exception:
                     pass
             except Exception as e:

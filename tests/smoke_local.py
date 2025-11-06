@@ -1,11 +1,11 @@
 """
-Local Ollama reachability smoke test (qualitative only)
+로컬 Ollama 도달성 스모크 테스트(질적 출력만 확인)
 
-Purpose
-- Verify Ollama responds and returns a JSON block containing day, reason, llm_summary
-  for a Day 2 obstacle description.
+목적
+- Ollama가 응답하고, Day 2 장애 시나리오에 대해 ```json 코드 펜스 안의 일치하는
+  JSON(daily_qual: day, reason, llm_summary)을 반환하는지 검증합니다.
 
-Run
+실행
   python -m tests.smoke_local
 """
 
@@ -20,29 +20,63 @@ from config import OLLAMA_BASE_URL, MODEL_NAME
 
 
 def extract_json_block(text: str) -> Dict[str, Any]:
-    """Parse the first JSON object inside a ```json fenced block."""
-    fence = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", text, flags=re.IGNORECASE)
-    if not fence:
+    """```json 코드 펜스 안의 첫 번째 JSON 객체를 괄호 균형으로 파싱합니다."""
+    m = re.search(r"```json\s*([\s\S]*?)```", text, flags=re.IGNORECASE)
+    if not m:
         raise ValueError("No JSON code fence found")
-    return json.loads(fence.group(1))
+    fenced = m.group(1).strip()
+
+    i = 0
+    n = len(fenced)
+    while i < n and fenced[i] != "{":
+        i += 1
+    if i >= n:
+        raise ValueError("No JSON object start found in fenced block")
+
+    depth = 0
+    in_str = False
+    escape = False
+    start = i
+    for j in range(i, n):
+        ch = fenced[j]
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+        else:
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    segment = fenced[start : j + 1]
+                    return json.loads(segment)
+    raise ValueError("Unbalanced JSON braces in fenced block")
 
 
 def main() -> int:
-    # SYSTEM: JSON-only rule; USER: Day 2 obstacle, ask for qualitative output only
+    # SYSTEM: JSON-only 규칙
+    # USER: Day 2 장애 가정. 질적 출력만 요청.
     messages = [
         {
             "role": "system",
             "content": (
-                "Output exactly one JSON object in a ```json fenced block. "
-                "Include keys: day, reason, llm_summary."
+                "모든 출력은 하나의 ```json 코드 펜스 안에 JSON 객체 한 개로만 반환하세요. "
+                "헤더: version=\"AST-v1\", type=\"daily_qual\", role=\"EEVE\", day. "
+                "본문 키: reason, llm_summary. 한국어 공손체."
             ),
         },
         {
             "role": "user",
             "content": (
                 "Day 2 obstacle: Cloud inference costs are spiking. "
-                "My plan: switch to smaller context windows, add caching, and batch requests. "
-                "Summarize and explain qualitatively; return JSON only."
+                "Plan: use smaller context windows, add caching, and batch requests. "
+                "Return JSON only inside a single ```json fenced block."
             ),
         },
     ]
@@ -72,4 +106,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Smoke test failed: {e}")
         sys.exit(1)
-
