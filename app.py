@@ -40,7 +40,11 @@ st.markdown(
         font-family: \"Courier New\", Courier, monospace !important;
     }
     [data-testid=\"stSidebar\"] { background:var(--term-bg)!important; color:var(--term-fg)!important; border-right:1px solid var(--term-border); }
-    h1,h2,h3,h4,h5,h6,p,span,label,div,code,pre { color:var(--term-fg)!important; font-family:\"Courier New\", Courier, monospace!important; }
+    h1,h2,h3,h4,h5,h6,p,label,code,pre { color:var(--term-fg)!important; font-family:\"Courier New\", Courier, monospace!important; }
+    /* div는 아이콘 요소 제외하고 적용 */
+    div:not([data-testid*="collapsedControl"]):not([class*="Icon"]) { color:var(--term-fg)!important; font-family:\"Courier New\", Courier, monospace!important; }
+    /* Material Icons 제외 - 아이콘이 아닌 span만 타겟팅 */
+    span:not([class*="material"]):not([data-baseweb]):not([aria-hidden]) { color:var(--term-fg)!important; font-family:\"Courier New\", Courier, monospace!important; }
     a{ color:var(--term-fg)!important; text-decoration:none; } a:hover{ text-decoration:underline; }
     [data-testid=\"stChatMessage\"]{ background:transparent!important; border:1px solid var(--term-border)!important; border-radius:0!important; padding:0.5rem 0.75rem!important; box-shadow:none!important; }
     [data-testid=\"stChatInput\"] textarea, [data-testid=\"stChatInput\"] div[contenteditable=\"true\"]{
@@ -49,6 +53,29 @@ st.markdown(
     .stButton > button{ background:var(--term-bg)!important; color:var(--term-fg)!important; border:1px solid var(--term-border)!important; border-radius:0!important; font-family:\"Courier New\", Courier, monospace!important; }
     .stButton > button:hover{ border-color:var(--term-fg)!important; }
     pre, code, .stCode code { background: var(--term-bg)!important; color: var(--term-fg)!important; border: none!important; }
+    /* Material Icons와 아이콘 폰트는 원래 스타일 유지 - 더 강력하게 */
+    [class*="material-icons"], [class*="Icon"], span[data-baseweb], span[aria-hidden="true"],
+    button[data-testid*="collapsed"] *, [data-testid*="collapsedControl"] * {
+        font-family: "Material Icons", "Material Symbols Outlined", system-ui !important;
+    }
+    /* 사이드바 토글 버튼 스타일 수정 */
+    button[data-testid="baseButton-header"] {
+        font-family: "Material Icons", "Material Symbols Outlined", system-ui !important;
+    }
+    /* keyboard_double_arrow 텍스트 숨기고 화살표 심볼로 대체 */
+    button[data-testid="baseButton-header"] span {
+        font-size: 0 !important; /* 원본 텍스트 숨김 */
+    }
+    button[data-testid="baseButton-header"] span::before {
+        content: "»" !important; /* 사이드바 닫기 (오른쪽 화살표) */
+        font-size: 1.5rem !important;
+        font-family: monospace !important;
+        color: var(--term-fg) !important;
+        display: inline-block !important;
+    }
+    button[data-testid="baseButton-header"][aria-expanded="true"] span::before {
+        content: "«" !important; /* 사이드바 열기 (왼쪽 화살표) */
+    }
     footer { visibility: hidden; }
     </style>
     """,

@@ -1,5 +1,5 @@
 ﻿"""
-Engine (OpenAI-only): Uses OpenAI (gpt-4o-mini) for both Issuer and Tester per AST-v1.
+Engine (OpenAI-only): Uses OpenAI (gpt-4o-mini) for both Issuer and Tester per .
 - Issuer: event_card (days 1..6), daily_qual (reason, llm_summary) with role="EEVE" in header
 - Tester: daily_score (delta, score) with role="OpenAI" in header
 Merges into daily_report: {day, delta, score, reason, llm_summary, tester_reason, tester_llm_summary}.
@@ -39,7 +39,7 @@ from engine_openai_relaxed import (
 # - 이 모듈은 OpenAI(gpt-4o-mini)를 발행자/채점자 모두로 사용하는 순수 OpenAI 경로입니다.
 # - event_card/daily_qual/daily_score를 모두 OpenAI에 요청하며, 실패 시에는 간단한
 #   결정론적 대체를 사용해 UI가 끊기지 않도록 합니다.
-# - JSON 전용 출력, 단일 코드 펜스 등 AST-v1 프로토콜의 핵심 규칙을 시스템 프롬프트에 강제합니다.
+# - JSON 전용 출력, 단일 코드 펜스 등  프로토콜의 핵심 규칙을 시스템 프롬프트에 강제합니다.
 
 
 # --- Public API -------------------------------------------------------------
@@ -49,7 +49,7 @@ def get_event_card(day: int) -> Dict[str, Any]:
     """OpenAI를 사용해 이벤트 카드를 생성합니다(실패 시 결정론적 대체).
 
     - day==1: 사용자 핵심 아이디어 유도를 위해 고정 카드 사용(모델 호출 없음)
-    - day in 2..6: OpenAI 호출로 event_card(JSON) 생성 시도
+    - day in 2..5: OpenAI 호출로 event_card(JSON) 생성 시도
     - 실패 시: 간단한 대체 카드를 반환하여 UI 흐름을 유지
     """
     # Day 1 is hardcoded to elicit the user's core idea (no model call).
@@ -291,7 +291,7 @@ def _issuer_system_prompt(day: int, mode: str) -> str:
         "다음 규칙을 반드시 준수해 주세요.\n"
         "- 오직 하나의 JSON 객체만을 ```json 펜스 코드 블록 안에 출력합니다.\n"
         "- 펜스 밖, 앞/뒤의 어떠한 문장/공백/설명도 출력하지 마세요.\n"
-        "- 공통 헤더: version=\\\"AST-v1\\\", role=\\\"EEVE\\\", day.\n"
+        "- 공통 헤더: version=role=\\\"EEVE\\\", day.\n"
         "- 매일 사용자 입력은 한 문단(한 번)만 가정합니다. 공손한 한국어(존댓말)로 답변합니다.\n"
         "- 지시문을 반복하거나 요약하지 말고, JSON만 출력하세요.\n"
         "- 해당 일차 입력 가이드라인을 반영하세요:\n"
@@ -325,7 +325,7 @@ def _issuer_event_payload(day: int) -> str:
         "  · 주제가 없으면 먼저 짧은 주제 입력을 요청하고, 이어서 같은 문장에서 퀴즈를 제시하세요.\n"
         "  · 요약/정의형 금지. 설계·의사결정·실행계획 같은 적용형 문제를 요구하세요.\n"
         "- constraints에는 퀴즈 풀이 제한(분량, 금지어, 평가포인트)을 1~3개 작성합니다.\n"
-        "- 필수 키: version=\\\"AST-v1\\\", type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
+        "- 필수 키: version=type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
         "- 출력은 반드시 하나의 ```json 펜스 블록 안의 JSON 객체로만 구성합니다.\n"
         "- 금지: 지시문/스키마 문장 반복, 펜스 밖 텍스트."
     )
@@ -334,7 +334,7 @@ def _issuer_event_payload(day: int) -> str:
 def _issuer_daily_qual_payload(day: int, user_text: str) -> str:
     return (
         f"사용자의 Day {day} 입력 문단을 바탕으로 daily_qual JSON을 생성하세요.\n"
-        "- 필수 키: version=\\\"AST-v1\\\", type=\\\"daily_qual\\\", role=\\\"EEVE\\\", day, reason, llm_summary.\n"
+        "- 필수 키: version=type=\\\"daily_qual\\\", role=\\\"EEVE\\\", day, reason, llm_summary.\n"
         "- 출력은 반드시 하나의 ```json 펜스 블록 안의 JSON 객체로만 구성합니다.\n"
         "- 금지: 입력 요약/지시문 반복/펜스 밖 텍스트.\n\n"
         f"[User Paragraph]\n{user_text}"
@@ -347,7 +347,7 @@ def _tester_user_payload(day: int, user_text: str, prev_score: int) -> str:
         f"Prev Score: {prev_score}\n"
         "User Paragraph (one only):\n"
         f"{user_text}\n\n"
-        "Output schema: version=\"AST-v1\", type=\"daily_score\", role=\"OpenAI\", day, delta, score, reason, llm_summary."
+        "Output schema: version=\"\", type=\"daily_score\", role=\"OpenAI\", day, delta, score, reason, llm_summary."
     )
 
 
@@ -355,7 +355,7 @@ def _issuer_event_payload_seeded(day: int) -> str:
     """Event-card payload builder with a random seed to diversify prompts.
 
     Mirrors the strict schema but adds a non-output seed hint to encourage
-    variety across refreshes while keeping AST-v1 and constraints intact.
+    variety across refreshes while keeping  and constraints intact.
     """
     import uuid as _uuid
     seed = _uuid.uuid4().hex[:8]
@@ -366,7 +366,7 @@ def _issuer_event_payload_seeded(day: int) -> str:
         "- Require a specific incident, not a vague discussion. It must name a component/endpoint, quantify impact (metric delta, error rate), give a timeframe and environment, and cite any error code/log clue.\n"
         "- response_instructions must ask the user for a one-paragraph fix plan for this incident (immediate/short/mid actions).\n"
         "- constraints must include polite Korean and one-paragraph-only.\n"
-        "- Required keys: version=\\\"AST-v1\\\", type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
+        "- Required keys: version=type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
         "- Output exactly one JSON object inside a single ```json fenced block."
     )
 
@@ -397,7 +397,7 @@ def _tester_system_prompt(day: int) -> str:
     rubric = RUBRIC_BY_DAY.get(day, "")
     return (
         "오직 하나의 JSON 객체만을 (설명 문장 없이) ```json 펜스 코드 블록 안에 출력하세요.\n"
-        "헤더: version=\"AST-v1\", role=\"OpenAI\", type=\"daily_score\", day.\n"
+        "헤더: version=role=\"OpenAI\", type=\"daily_score\", day.\n"
         "키: day, delta, score, reason, llm_summary. score = max(0, prev + delta).\n"
         "아래 일차별 루브릭을 참고하여 채점하세요:\n"
         f"{rubric}"
@@ -407,7 +407,7 @@ def _tester_system_prompt(day: int) -> str:
 def _final_weekly_system_prompt() -> str:
     return (
         "오직 하나의 JSON 객체만을 ```json 펜스 코드 블록 안에 출력하세요.\n"
-        "헤더: version=\"AST-v1\", role=\"EEVE\", type=\"weekly_qual\", day=7.\n"
+        "헤더: version=role=\"EEVE\", type=\"weekly_qual\", day=7.\n"
         "키: day, final_score, final_grade, risk_report[], next_recommendations[].\n"
         "요구사항:\n"
         "- risk_report는 이번 주 진행에서 발견된 핵심 위험 2가지를 간결히 제시합니다.\n"
@@ -435,13 +435,13 @@ def _fallback_llm_score(day: int, user_text: str, prev_score: int) -> Dict[str, 
     """Secondary attempt to score via OpenAI with a robust semantic prompt.
 
     Used when the primary tester call fails. Emphasizes rubric-driven evaluation
-    and discourages keyword matching; keeps AST-v1 contract. If it still fails,
+    and discourages keyword matching; keeps  contract. If it still fails,
     caller should revert to deterministic _fallback_delta.
     """
     rubric = RUBRIC_BY_DAY.get(day, "")
     sys_prompt = (
         "Return exactly one JSON object (no extra text) in a ```json fenced block.\n"
-        "Header: version=\\\"AST-v1\\\", role=\\\"OpenAI\\\", type=\\\"daily_score\\\", day.\n"
+        "Header: version=role=\\\"OpenAI\\\", type=\\\"daily_score\\\", day.\n"
         "Keys: day, delta, score, reason, llm_summary. score = max(0, prev + delta).\n"
         "Judge semantically (coverage, coherence, specificity, trade-offs, risks), not by keyword presence.\n"
         "Handle creative phrasing; penalize vagueness or off-target responses. Keep delta within [-8, +5].\n"
@@ -477,30 +477,30 @@ def _fallback_delta(day: int, user_text: str) -> int:
             feasibility = min(DAY1_FEASIBLE_MAX, 5)
         delta = min(10, creativity + feasibility)
     elif day == 2:
-        hits = sum(k in text for k in ["rollback", "monitor", "alert", "cache", "batch", "logging"])
+        hits = sum(k in text for k in ["rollback", "monitor", "alert", "cache", "logging"])
         delta = 3 if hits >= 5 else (1 if hits >= 3 else -20)
     elif day == 3:
-        has_prior = any(k in text for k in ["top", "prior", "2", "3"])
-        avoids_trap = any(k in text for k in ["ignore", "defer", "not good", "low"])
         fit = any(k in text for k in ["goal", "fit", "footprint"])
-        delta = (2 if has_prior else 0) + (2 if avoids_trap else -5) + (1 if fit else 0)
+        delta = (0 if fit else -5)
     elif day == 4:
-        measure = any(k in text for k in ["p95", "monitor", "alert"])  # measurement
+        measure = any(k in text for k in ["monitor", "alert"])  # measurement
         mitigate = any(k in text for k in ["rollback", "cache", "batch", "optimize"])  # mitigation
         safety = any(k in text for k in ["privacy", "mask", "permission"])  # safety/trust
         hits = sum([measure, mitigate, safety])
         delta = {3: 3, 2: 1, 1: -5, 0: -10}.get(hits, -20)
     elif day == 5:
         classify = any(k in text for k in ["ignore", "analyze", "apply now", "classify"])  # classification
-        trap = ("emoji" in text) and ("ignore" in text or "exclude" in text)
         action = any(k in text for k in ["apply", "improve", "action", "check"])  # action quality
-        delta = (2 if classify else -3) + (2 if trap else -20) + (1 if action else 0)
+        delta = (2 if classify else -3) + (1 if action else 0)
     elif day == 6:
-        clarity = any(k in text for k in ["overview", "purpose", "outcome"])  # clarity
-        fit = any(k in text for k in ["icp", "segment", "fit"])  # market fit
-        outcome = any(k in text for k in ["roadmap", "risk", "learn"])  # outcome framing
-        hits = sum([clarity, fit, outcome])
-        delta = {3: 3, 2: 1, 1: -3, 0: -8}.get(hits, -8)
+        # Investor pitch coverage heuristic
+        g_problem = any(k in text for k in ["problem", "customer", "pain"])  # problem & customer
+        g_solution_ai = any(k in text for k in ["ai", "llm", "model", "rag", "prompt", "eval"])  # AI/LLM specifics
+        g_market_moat = any(k in text for k in ["market", "segment", "moat", "privacy", "compliance", "safety"])  # market & moat
+        g_traction = any(k in text for k in ["traction", "metric", "kpi", "pilot", "mrr", "users", "roadmap"])  # traction & roadmap
+        g_team_ask = any(k in text for k in ["team", "ask", "fund", "funding", "use of funds", "budget"])  # team & ask
+        coverage = sum([g_problem, g_solution_ai, g_market_moat, g_traction, g_team_ask])
+        delta = {5: 5, 4: 3, 3: 1, 2: -3, 1: -5, 0: -8}.get(coverage, -8)
     else:
         delta = 0
     return int(delta)

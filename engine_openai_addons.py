@@ -23,7 +23,7 @@ def _issuer_system_prompt_strict(day: int, mode: str) -> str:
         "Follow these strict rules.\n"
         "- Output exactly one JSON object inside a single ```json fenced block.\n"
         "- No pre/post text, markdown, emojis, comments, or repetition.\n"
-        "- Header keys: version=\\\"AST-v1\\\", role=\\\"EEVE\\\", day.\n"
+        "- Header keys: role=\\\"EEVE\\\", day.\n"
         "- Use Korean polite tone only inside JSON string values.\n"
         "- Do NOT score or mention delta/score. EEVE never scores.\n"
         "- Observe the following user input guideline:\n"
@@ -53,7 +53,7 @@ def _issuer_event_payload_strict(day: int) -> str:
         "- Require a specific incident, not a vague discussion. It must name a component/endpoint, quantify impact (metric delta, error rate), give a timeframe and environment, and cite any error code/log clue.\n"
         "- response_instructions must ask the user for a one-paragraph fix plan for this incident (immediate/short/mid actions).\n"
         "- constraints must include: '한 문단으로만 작성', '한국어 존댓말 사용'.\n"
-        "- Required keys: version=\\\"AST-v1\\\", type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
+        "- Required keys: type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
         "- Output exactly one JSON object inside a single ```json fenced block."
     )
 
@@ -62,7 +62,7 @@ def _tester_system_prompt_strict(day: int) -> str:
     rubric = RUBRIC_BY_DAY.get(day, "")
     return (
         "Return exactly one JSON object (no extra text) in a ```json fenced block.\n"
-        "Header: version=\"AST-v1\", role=\"OpenAI\", type=\"daily_score\", day.\n"
+        "Header: role=\"OpenAI\", type=\"daily_score\", day.\n"
         "Keys: day, delta, score, reason, llm_summary. score = max(0, prev + delta).\n"
         "Scoring focus: Evaluate whether the user's one-paragraph plan appropriately fixes the specific incident in the event card. Consider (1) problem-solution fit/root-cause alignment, (2) actionability (immediate/short/mid), (3) safety & measurement (rollback, comms, monitoring). Penalize vague, off-target, or non-actionable answers.\n"
         f"{rubric}"
@@ -77,7 +77,7 @@ def _issuer_system_prompt_strict(day: int, mode: str) -> str:  # type: ignore[ov
         "Follow these rules (friendly, concrete, student-startup context).\n"
         "- Output exactly one JSON object inside a single ```json fenced block.\n"
         "- No pre/post text, markdown, emojis, comments, or repetition.\n"
-        "- Header keys: version=\\\"AST-v1\\\", role=\\\"EEVE\\\", day.\n"
+        "- Header keys: role=\\\"EEVE\\\", day.\n"
         "- Use Korean polite tone only inside JSON string values.\n"
         "- Do NOT score or mention delta/score. EEVE never scores.\n"
         "- Observe the following user input guideline:\n"
@@ -112,7 +112,7 @@ def _issuer_event_payload_strict(day: int) -> str:  # type: ignore[override]
         "- eval_focus는 [원인 정합성, 실행 가능성(즉시/단기/중기; 학생 팀 관점), 안전/측정] 3개로 고정.\n"
         "- response_instructions에는 ‘한 문단 해결 계획(간단 도구/오픈소스/저예산)’ 요청을 포함.\n"
         "- constraints에는 '한 문단으로만 작성', '한국어 존댓말 사용'을 포함.\n"
-        "- Required keys: version=\\\"AST-v1\\\", type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
+        "- Required keys: type=\\\"event_card\\\", role=\\\"EEVE\\\", day, title, summary, constraints[], eval_focus[], response_instructions.\n"
         "- Output exactly one JSON object inside a single ```json fenced block."
     )
 
@@ -121,7 +121,7 @@ def _tester_system_prompt_strict(day: int) -> str:  # type: ignore[override]
     rubric = RUBRIC_BY_DAY.get(day, "")
     return (
         "Return exactly one JSON object (no extra text) in a ```json fenced block.\n"
-        "Header: version=\\\"AST-v1\\\", role=\\\"OpenAI\\\", type=\\\"daily_score\\\", day.\n"
+        "Header: role=\\\"OpenAI\\\", type=\\\"daily_score\\\", day.\n"
         "Keys: day, delta, score, reason, llm_summary. score = max(0, prev + delta).\n"
         "Scoring focus (student-startup, AI/LLM context): rate (1) 문제-해결 적합성/원인 정합성, (2) 실행 가능성(즉시/단기/중기; 1주·<$200·소수 인원 기준), (3) 안전/측정(간이 롤백·모니터링·고객 커뮤니케이션). 과도하게 모호/비현실/엔터프라이즈 의존(고가 SaaS·전문 인력 전제)은 감점.\n"
         f"{rubric}"
